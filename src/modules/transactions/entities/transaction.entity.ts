@@ -28,5 +28,5 @@ export class Transaction extends BaseEntity {
   recipient_wallet_id!: string | null;
 
   @Column('jsonb', { nullable: true })
-  metadata!: any | null;
+  metadata!: Record<string, unknown> | null;
 }

@@ -30,5 +30,5 @@ export class CreateTransactionDto {
   recipient_wallet_id?: string;
 
   @IsOptional()
-  metadata?: any;
+  metadata?: Record<string, unknown>;
 }
