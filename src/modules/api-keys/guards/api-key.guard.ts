@@ -21,8 +21,9 @@ export class ApiKeyGuard implements CanActivate {
             throw new UnauthorizedException('Invalid or expired API key');
         }
 
-        // Attach user to request
+        // Attach user and apiKey to request
         request.user = validatedKey.user;
+        (request as any).apiKey = validatedKey;
 
         return true;
     }

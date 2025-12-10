@@ -1,8 +1,7 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException, InternalServerErrorException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThan } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
-import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import { ApiKey } from './entities/api-key.entity';
 import { CreateApiKeyDto } from './dto/create-api-key.dto';
@@ -13,7 +12,6 @@ import { parseExpiry } from './utils/expiry.util';
 
 @Injectable()
 export class ApiKeysService {
-    private readonly saltRounds: number;
     private readonly MAX_ACTIVE_KEYS = 5;
 
     constructor(
@@ -21,43 +19,57 @@ export class ApiKeysService {
         private readonly apiKeysRepository: Repository<ApiKey>,
         private readonly configService: ConfigService,
     ) {
-        this.saltRounds = this.configService.get<number>('API_KEY_SALT_ROUNDS', 10);
+    }
+
+    private hashKey(plainKey: string): string {
+        return crypto.createHash('sha256').update(plainKey).digest('hex');
     }
 
     async create(user_id: string, createApiKeyDto: CreateApiKeyDto): Promise<CreateApiKeyResponseDto> {
-        // Check 5 active keys limit
-        const activeCount = await this.countActiveKeys(user_id);
-        if (activeCount >= this.MAX_ACTIVE_KEYS) {
-            throw new BadRequestException('Maximum 5 active API keys allowed per user');
+        try {
+            // Check 5 active keys limit
+            const activeCount = await this.countActiveKeys(user_id);
+            if (activeCount >= this.MAX_ACTIVE_KEYS) {
+                throw new BadRequestException('Maximum 5 active API keys allowed per user');
+            }
+
+            // Generate random 32-character API key with prefix
+            const plainKey = `pk_${crypto.randomBytes(16).toString('hex')}`;
+
+            // Hash the key using SHA256
+            const key_hash = this.hashKey(plainKey);
+
+            // Parse expiry format to datetime
+            const expires_at = parseExpiry(createApiKeyDto.expiry);
+
+            // Create and save API key
+            const apiKey = this.apiKeysRepository.create({
+                user_id,
+                key_hash,
+                name: createApiKeyDto.name,
+                permissions: createApiKeyDto.permissions,
+                expires_at,
+                is_revoked: false,
+                last_used_at: null,
+            });
+
+            const savedKey = await this.apiKeysRepository.save(apiKey);
+
+            // Return plain key (only time it's visible) + metadata
+            return {
+                api_key: plainKey,
+                expires_at: savedKey.expires_at,
+            };
+        } catch (error) {
+            if (error instanceof BadRequestException) {
+                throw error;
+            }
+
+            const logger = new Logger(ApiKeysService.name);
+            logger.error(`Failed to create API key: ${error instanceof Error ? error.message : error}`);
+
+            throw new InternalServerErrorException('Failed to create API key. Please check parameters and try again.');
         }
-
-        // Generate random 32-character API key
-        const plainKey = crypto.randomBytes(16).toString('hex');
-
-        // Hash the key
-        const key_hash = await bcrypt.hash(plainKey, this.saltRounds);
-
-        // Parse expiry format to datetime
-        const expires_at = parseExpiry(createApiKeyDto.expiry);
-
-        // Create and save API key
-        const apiKey = this.apiKeysRepository.create({
-            user_id,
-            key_hash,
-            name: createApiKeyDto.name,
-            permissions: createApiKeyDto.permissions,
-            expires_at,
-            is_revoked: false,
-            last_used_at: null,
-        });
-
-        const savedKey = await this.apiKeysRepository.save(apiKey);
-
-        // Return plain key (only time it's visible) + metadata
-        return {
-            api_key: plainKey,
-            expires_at: savedKey.expires_at,
-        };
     }
 
     async findByUserId(user_id: string): Promise<ApiKeyResponseDto[]> {
@@ -132,24 +144,24 @@ export class ApiKeysService {
     }
 
     async validateApiKey(plainKey: string): Promise<ApiKey | null> {
-        // Find all non-revoked, non-expired keys
-        const keys = await this.apiKeysRepository.find({
+        // Hash the incoming key
+        const key_hash = this.hashKey(plainKey);
+
+        // Direct lookup by hash (O(1))
+        const key = await this.apiKeysRepository.findOne({
             where: {
+                key_hash,
                 is_revoked: false,
                 expires_at: MoreThan(new Date()),
             },
             relations: ['user'],
         });
 
-        // Compare plainKey with each key_hash
-        for (const key of keys) {
-            const isMatch = await bcrypt.compare(plainKey, key.key_hash);
-            if (isMatch) {
-                // Update last_used_at
-                key.last_used_at = new Date();
-                await this.apiKeysRepository.save(key);
-                return key;
-            }
+        if (key) {
+            // Update last_used_at
+            key.last_used_at = new Date();
+            await this.apiKeysRepository.save(key);
+            return key;
         }
 
         return null;

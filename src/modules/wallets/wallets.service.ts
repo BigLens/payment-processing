@@ -78,6 +78,8 @@ export class WalletsService {
 
     async handleWebhook(payload: PaystackWebhookPayload, signature: string): Promise<{ status: boolean }> {
         // Validate signature
+        this.logger.log(`DEBUG Webhook Payload: ${JSON.stringify(payload)}`);
+
         const secretKey = this.configService.get<string>('PAYSTACK_SECRET_KEY');
         const hash = crypto
             .createHmac('sha512', secretKey!)
@@ -159,8 +161,10 @@ export class WalletsService {
         }
 
         // Validate balance
-        if (senderWallet.balance < amount) {
-            throw new BadRequestException('Insufficient balance');
+        this.logger.log(`Transfer Debug - Balance: ${senderWallet.balance} (${typeof senderWallet.balance}), Amount: ${amount} (${typeof amount})`);
+
+        if (Number(senderWallet.balance) < Number(amount)) {
+            throw new BadRequestException(`Insufficient balance: Has ${senderWallet.balance}, Needs ${amount}`);
         }
 
         // Find recipient's wallet
@@ -197,7 +201,7 @@ export class WalletsService {
                 type: TransactionType.TRANSFER_OUT,
                 amount: -amount, // Negative for debit
                 status: TransactionStatus.SUCCESS,
-                reference,
+                reference: `${reference}-OUT`,
                 recipient_wallet_id: recipientWallet.id,
                 metadata: null,
             });
@@ -209,7 +213,7 @@ export class WalletsService {
                 type: TransactionType.TRANSFER_IN,
                 amount: amount, // Positive for credit
                 status: TransactionStatus.SUCCESS,
-                reference,
+                reference: `${reference}-IN`,
                 recipient_wallet_id: senderWallet.id,
                 metadata: null,
             });
@@ -230,6 +234,16 @@ export class WalletsService {
         } finally {
             await queryRunner.release();
         }
+    }
+
+    generateTestSignature(payload: any): string {
+        const secret = this.configService.get<string>('PAYSTACK_SECRET_KEY');
+        if (!secret) return '';
+
+        return crypto
+            .createHmac('sha512', secret)
+            .update(JSON.stringify(payload))
+            .digest('hex');
     }
 
     async getBalance(user_id: string): Promise<number> {
@@ -255,4 +269,54 @@ export class WalletsService {
             amount: transaction.amount,
         };
     }
+
+    async getTransactions(
+        user_id: string,
+        filterDto: any, // We'll verify the DTO import in the controller
+    ) {
+        const { type, status, startDate, endDate, limit = 10, offset = 0 } = filterDto;
+
+        const wallet = await this.findByUserId(user_id);
+        if (!wallet) {
+            throw new NotFoundException('Wallet not found');
+        }
+
+        const query = this.transactionsRepository.createQueryBuilder('transaction')
+            .where('transaction.wallet_id = :walletId', { walletId: wallet.id });
+
+        if (type) {
+            query.andWhere('transaction.type = :type', { type });
+        }
+
+        if (status) {
+            query.andWhere('transaction.status = :status', { status });
+        }
+
+        if (startDate) {
+            query.andWhere('transaction.created_at >= :startDate', { startDate });
+        }
+
+        if (endDate) {
+            query.andWhere('transaction.created_at <= :endDate', { endDate });
+        }
+
+        // Include relations for better context if needed, but for now basic info is good
+        // query.leftJoinAndSelect('transaction.recipient_wallet', 'recipientWallet');
+
+        query.orderBy('transaction.created_at', 'DESC')
+            .skip(offset)
+            .take(limit);
+
+        const [transactions, total] = await query.getManyAndCount();
+
+        return {
+            data: transactions,
+            meta: {
+                total,
+                limit,
+                offset,
+            },
+        };
+    }
 }
+

@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
-import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
 import { ApiKeysService } from './api-keys.service';
 import { ApiKey } from './entities/api-key.entity';
 import { ApiKeyPermission } from './enums/api-key.enum';
@@ -78,7 +78,7 @@ describe('ApiKeysService', () => {
             const result = await service.create('user-123', createDto);
 
             expect(result).toHaveProperty('api_key');
-            expect(result.api_key).toHaveLength(32);
+            expect(result.api_key).toHaveLength(35);
             expect(result).toHaveProperty('expires_at');
         });
 
@@ -185,31 +185,31 @@ describe('ApiKeysService', () => {
 
     describe('validateApiKey', () => {
         it('should return API key for valid plain key', async () => {
-            const plainKey = 'test-plain-key';
-            const hashedKey = await bcrypt.hash(plainKey, 10);
+            const plainKey = 'pk_test-plain-key';
+            const hashedKey = crypto.createHash('sha256').update(plainKey).digest('hex');
             const validKey = { ...mockApiKey, key_hash: hashedKey };
 
-            jest.spyOn(repository, 'find').mockResolvedValue([validKey]);
+            jest.spyOn(repository, 'findOne').mockResolvedValue(validKey);
             jest.spyOn(repository, 'save').mockResolvedValue(validKey);
 
             const result = await service.validateApiKey(plainKey);
 
             expect(result).toBeDefined();
             expect(result?.id).toBe(mockApiKey.id);
+            expect(repository.findOne).toHaveBeenCalledWith({
+                where: {
+                    key_hash: hashedKey,
+                    is_revoked: false,
+                    expires_at: expect.anything(), // MoreThan(new Date()) is hard to match exactly
+                },
+                relations: ['user'],
+            });
         });
 
         it('should return null for invalid key', async () => {
-            jest.spyOn(repository, 'find').mockResolvedValue([mockApiKey]);
+            jest.spyOn(repository, 'findOne').mockResolvedValue(null);
 
             const result = await service.validateApiKey('invalid-key');
-
-            expect(result).toBeNull();
-        });
-
-        it('should return null for revoked key', async () => {
-            jest.spyOn(repository, 'find').mockResolvedValue([]);
-
-            const result = await service.validateApiKey('any-key');
 
             expect(result).toBeNull();
         });

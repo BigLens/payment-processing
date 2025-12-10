@@ -134,6 +134,48 @@ export const GetDepositStatusDoc = () =>
         }),
     );
 
+
+export const GetTransactionsDoc = () =>
+    applyDecorators(
+        ApiOperation({
+            summary: 'Get wallet transactions',
+            description: 'Retrieve transaction history with optional filters (type, status, date range) and pagination.',
+        }),
+        ApiSecurity('bearer'),
+        ApiSecurity('x-api-key'),
+        ApiResponse({
+            status: 200,
+            description: 'Transactions retrieved successfully',
+            schema: {
+                example: {
+                    data: [
+                        {
+                            id: 'uuid',
+                            type: 'deposit',
+                            amount: 5000,
+                            status: 'success',
+                            reference: 'TXN_...',
+                            created_at: '2024-12-10T...',
+                        }
+                    ],
+                    meta: {
+                        total: 1,
+                        limit: 10,
+                        offset: 0,
+                    },
+                },
+            },
+        }),
+        ApiResponse({
+            status: 401,
+            description: 'Unauthorized',
+        }),
+        ApiResponse({
+            status: 404,
+            description: 'Wallet not found',
+        }),
+    );
+
 export const GetBalanceDoc = () =>
     applyDecorators(
         ApiOperation({

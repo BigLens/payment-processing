@@ -1,5 +1,5 @@
-import { Controller, Post, Get, Body, Param, Req, UseGuards, Headers, HttpCode } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { Controller, Post, Get, Body, Param, Req, UseGuards, Headers, HttpCode, Query } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiBody } from '@nestjs/swagger';
 import { Request } from 'express';
 import { WalletsService } from './wallets.service';
 import { FlexibleAuthGuard } from '../../common/guards/flexible-auth.guard';
@@ -8,6 +8,7 @@ import { RequirePermissions } from '../api-keys/decorators/require-permissions.d
 import { ApiKeyPermission } from '../api-keys/enums/api-key.enum';
 import { DepositDto } from './dto/deposit.dto';
 import { TransferDto } from './dto/transfer.dto';
+import { TransactionFilterDto } from './dto/transaction-filter.dto';
 import { DepositResponseDto } from './dto/deposit-response.dto';
 import { User } from '../users/entities/user.entity';
 import { PaystackWebhookPayload } from './interfaces/paystack-webhook.interface';
@@ -17,6 +18,7 @@ import {
   WebhookDoc,
   GetDepositStatusDoc,
   TransferDoc,
+  GetTransactionsDoc,
 } from './doc/wallets.swagger';
 
 @ApiTags('wallet')
@@ -42,11 +44,20 @@ export class WalletsController {
   @Post('paystack/webhook')
   @HttpCode(200)
   @WebhookDoc()
+  @ApiBody({ schema: { example: { event: 'charge.success', data: { reference: 'TXN_REQUIRED', amount: 500000, status: 'success' } } } })
   async paystackWebhook(
     @Body() payload: PaystackWebhookPayload,
     @Headers('x-paystack-signature') signature: string,
   ) {
     return this.walletsService.handleWebhook(payload, signature);
+  }
+
+  @Post('test/generate-signature')
+  @ApiOperation({ summary: 'Generate Paystack signature for testing' })
+  @ApiBody({ schema: { example: { event: 'charge.success', data: { reference: 'TXN_...', amount: 500000, status: 'success' } } } })
+  async generateSignature(@Body() payload: any) {
+    const signature = this.walletsService.generateTestSignature(payload);
+    return { signature };
   }
 
   @Post('transfer')
@@ -62,6 +73,17 @@ export class WalletsController {
       transferDto.wallet_number,
       transferDto.amount,
     );
+  }
+
+  @Get('transactions')
+  @UseGuards(FlexibleAuthGuard, PermissionsGuard)
+  @RequirePermissions(ApiKeyPermission.READ)
+  @GetTransactionsDoc()
+  async getTransactions(
+    @Req() req: Request & { user: User },
+    @Query() filterDto: TransactionFilterDto,
+  ) {
+    return this.walletsService.getTransactions(req.user.id, filterDto);
   }
 
   @Get('deposit/:reference/status')

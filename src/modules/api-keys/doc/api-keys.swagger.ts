@@ -45,7 +45,7 @@ export const ListApiKeysDoc = () =>
                     {
                         id: '123e4567-e89b-12d3-a456-426614174000',
                         name: 'wallet-service',
-                        permissions: ['read', 'deposit'],
+                        permissions: ['read', 'deposit', 'transfer'],
                         expires_at: '2025-12-10T21:58:00.000Z',
                         is_revoked: false,
                         last_used_at: '2024-12-09T12:00:00.000Z',

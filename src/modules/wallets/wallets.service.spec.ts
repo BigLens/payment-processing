@@ -58,6 +58,7 @@ describe('WalletsService', () => {
                     useValue: {
                         create: jest.fn(),
                         save: jest.fn(),
+                        createQueryBuilder: jest.fn(),
                         findOne: jest.fn(),
                     },
                 },
@@ -366,4 +367,57 @@ describe('WalletsService', () => {
                 .rejects.toThrow(BadRequestException);
         });
     });
+
+
+    describe('getTransactions', () => {
+        it('should return transactions with pagination', async () => {
+            const mockTransactions = [
+                { id: 'txn-1', amount: 5000, type: TransactionType.DEPOSIT },
+                { id: 'txn-2', amount: -2000, type: TransactionType.TRANSFER_OUT },
+            ];
+            const mockTotal = 2;
+
+            jest.spyOn(service, 'findByUserId').mockResolvedValue(mockWallet as never);
+
+            const createQueryBuilder: any = {
+                where: jest.fn().mockReturnThis(),
+                andWhere: jest.fn().mockReturnThis(),
+                orderBy: jest.fn().mockReturnThis(),
+                skip: jest.fn().mockReturnThis(),
+                take: jest.fn().mockReturnThis(),
+                getManyAndCount: jest.fn().mockResolvedValue([mockTransactions, mockTotal]),
+            };
+
+            jest.spyOn(transactionsRepository, 'createQueryBuilder').mockReturnValue(createQueryBuilder);
+
+            const filterDto = { limit: 10, offset: 0 };
+            const result = await service.getTransactions('user-123', filterDto);
+
+            expect(result.data).toEqual(mockTransactions);
+            expect(result.meta.total).toBe(mockTotal);
+            expect(transactionsRepository.createQueryBuilder).toHaveBeenCalled();
+            expect(createQueryBuilder.where).toHaveBeenCalledWith('transaction.wallet_id = :walletId', { walletId: mockWallet.id });
+        });
+
+        it('should filter transactions by type', async () => {
+            jest.spyOn(service, 'findByUserId').mockResolvedValue(mockWallet as never);
+
+            const createQueryBuilder: any = {
+                where: jest.fn().mockReturnThis(),
+                andWhere: jest.fn().mockReturnThis(),
+                orderBy: jest.fn().mockReturnThis(),
+                skip: jest.fn().mockReturnThis(),
+                take: jest.fn().mockReturnThis(),
+                getManyAndCount: jest.fn().mockResolvedValue([[], 0]),
+            };
+
+            jest.spyOn(transactionsRepository, 'createQueryBuilder').mockReturnValue(createQueryBuilder);
+
+            const filterDto = { type: TransactionType.DEPOSIT, limit: 10, offset: 0 };
+            await service.getTransactions('user-123', filterDto);
+
+            expect(createQueryBuilder.andWhere).toHaveBeenCalledWith('transaction.type = :type', { type: TransactionType.DEPOSIT });
+        });
+    });
 });
+

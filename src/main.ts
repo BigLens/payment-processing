@@ -23,6 +23,10 @@ async function bootstrap() {
     .setVersion('1.0')
     .addBearerAuth()
     .addApiKey({ type: 'apiKey', name: 'x-api-key', in: 'header' }, 'x-api-key')
+    .addTag('app', 'Application endpoints')
+    .addTag('auth', 'Authentication endpoints')
+    .addTag('api-keys', 'API Key management')
+    .addTag('wallet', 'Wallet operations')
     .build();
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api/docs', app, document);

@@ -11,7 +11,7 @@ export class CreateApiKeyDto {
   name!: string;
 
   @ApiProperty({
-    example: ['read', 'deposit'],
+    example: ['read', 'deposit', 'transfer'],
     enum: ApiKeyPermission,
     isArray: true,
   })
