@@ -31,6 +31,7 @@ import appConfig from './config/app.config';
         migrationsRun: false,
         installExtensions: false,
         logging: configService.get<string>('NODE_ENV') === 'development',
+        ssl: configService.get<string>('DB_SSL') === 'true' ? { rejectUnauthorized: false } : false,
       }),
       inject: [ConfigService],
     }),
