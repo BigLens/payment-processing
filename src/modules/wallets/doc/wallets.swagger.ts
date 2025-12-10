@@ -1,5 +1,5 @@
 import { applyDecorators } from '@nestjs/common';
-import { ApiOperation, ApiResponse, ApiSecurity } from '@nestjs/swagger';
+import { ApiOperation, ApiResponse, ApiSecurity, ApiHeader } from '@nestjs/swagger';
 import { DepositResponseDto } from '../dto/deposit-response.dto';
 
 export const DepositDoc = () =>
@@ -32,6 +32,105 @@ export const DepositDoc = () =>
         ApiResponse({
             status: 404,
             description: 'Wallet not found',
+        }),
+    );
+
+export const WebhookDoc = () =>
+    applyDecorators(
+        ApiOperation({
+            summary: 'Paystack webhook handler',
+            description: 'Receives payment notifications from Paystack. Validates signature and credits wallet on successful payment. This endpoint is called by Paystack, not by users.',
+        }),
+        ApiHeader({
+            name: 'x-paystack-signature',
+            description: 'Paystack webhook signature for verification',
+            required: true,
+        }),
+        ApiResponse({
+            status: 200,
+            description: 'Webhook processed successfully',
+            schema: {
+                example: {
+                    status: true,
+                },
+            },
+        }),
+        ApiResponse({
+            status: 400,
+            description: 'Bad Request - Invalid signature',
+        }),
+        ApiResponse({
+            status: 404,
+            description: 'Transaction not found',
+        }),
+    );
+
+export const TransferDoc = () =>
+    applyDecorators(
+        ApiOperation({
+            summary: 'Transfer funds to another wallet',
+            description: 'Transfers money from authenticated user wallet to another user wallet. Transaction is atomic - both debit and credit happen together or not at all.',
+        }),
+        ApiSecurity('bearer'),
+        ApiSecurity('x-api-key'),
+        ApiResponse({
+            status: 201,
+            description: 'Transfer completed successfully',
+            schema: {
+                example: {
+                    status: 'success',
+                    message: 'Transfer completed',
+                },
+            },
+        }),
+        ApiResponse({
+            status: 400,
+            description: 'Bad Request - Insufficient balance or invalid transfer',
+        }),
+        ApiResponse({
+            status: 401,
+            description: 'Unauthorized - Invalid or missing authentication',
+        }),
+        ApiResponse({
+            status: 403,
+            description: 'Forbidden - Insufficient permissions (requires transfer permission)',
+        }),
+        ApiResponse({
+            status: 404,
+            description: 'Sender or recipient wallet not found',
+        }),
+    );
+
+export const GetDepositStatusDoc = () =>
+    applyDecorators(
+        ApiOperation({
+            summary: 'Get deposit transaction status',
+            description: 'Returns the status of a deposit transaction by reference. This endpoint does NOT credit wallets - only the webhook credits wallets.',
+        }),
+        ApiSecurity('bearer'),
+        ApiSecurity('x-api-key'),
+        ApiResponse({
+            status: 200,
+            description: 'Transaction status retrieved successfully',
+            schema: {
+                example: {
+                    reference: 'TXN_1733778000000_a1b2c3d4e5f6g7h8',
+                    status: 'success',
+                    amount: 5000,
+                },
+            },
+        }),
+        ApiResponse({
+            status: 401,
+            description: 'Unauthorized - Invalid or missing authentication',
+        }),
+        ApiResponse({
+            status: 403,
+            description: 'Forbidden - Insufficient permissions (requires read permission)',
+        }),
+        ApiResponse({
+            status: 404,
+            description: 'Transaction not found',
         }),
     );
 

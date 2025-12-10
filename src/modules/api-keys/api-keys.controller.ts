@@ -16,7 +16,7 @@ import {
     RolloverApiKeyDoc,
 } from './doc/api-keys.swagger';
 
-@ApiTags('keys')
+@ApiTags('api-keys')
 @Controller('keys')
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
