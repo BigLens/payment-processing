@@ -44,20 +44,12 @@ export class WalletsController {
   @Post('paystack/webhook')
   @HttpCode(200)
   @WebhookDoc()
-  @ApiBody({ schema: { example: { event: 'charge.success', data: { reference: 'TXN_REQUIRED', amount: 500000, status: 'success' } } } })
   async paystackWebhook(
     @Body() payload: PaystackWebhookPayload,
     @Headers('x-paystack-signature') signature: string,
+    @Req() req: Request & { rawBody: Buffer },
   ) {
-    return this.walletsService.handleWebhook(payload, signature);
-  }
-
-  @Post('test/generate-signature')
-  @ApiOperation({ summary: 'Generate Paystack signature for testing' })
-  @ApiBody({ schema: { example: { event: 'charge.success', data: { reference: 'TXN_...', amount: 500000, status: 'success' } } } })
-  async generateSignature(@Body() payload: any) {
-    const signature = this.walletsService.generateTestSignature(payload);
-    return { signature };
+    return this.walletsService.handleWebhook(payload, signature, req.rawBody);
   }
 
   @Post('transfer')

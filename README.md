@@ -71,3 +71,24 @@ npm run test:e2e
 - `src/transactions`: Transaction history and recording.
 - `src/api-keys`: API key management.
 - `src/common`: Shared DTOs and utilities.
+
+## Webhooks & Testing
+
+### Testing Paystack Webhooks (Swagger)
+The `POST /wallet/paystack/webhook` endpoint validates the request signature (`x-paystack-signature`) against the raw request body using your `PAYSTACK_SECRET_KEY`.
+
+**To test manually in Swagger:**
+1.  **Generate a signature** independently (do not use online tools with real secrets).
+    Run this quick Node.js command in your terminal:
+    ```bash
+    node -e "console.log(require('crypto').createHmac('sha512', 'sk_test_YOUR_KEY').update(JSON.stringify({event:'charge.success',data:{...}})).digest('hex'))"
+    ```
+2.  Set the `x-paystack-signature` header in Swagger.
+3.  Send the matching JSON body: `{"event":"charge.success","data":{...}}`.
+
+### Real Paystack Testing
+For real integration testing:
+1.  Use a dev tunnel (e.g. VS Code, Ngrok) to expose localhost.
+2.  Set your Paystack Dashboard Webhook URL to: `https://<your-tunnel-url>/wallet/paystack/webhook`.
+3.  Initiate a deposit via Swagger -> Click returned link -> Pay with test card.
+

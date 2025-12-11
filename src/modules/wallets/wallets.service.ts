@@ -76,14 +76,14 @@ export class WalletsService {
         };
     }
 
-    async handleWebhook(payload: PaystackWebhookPayload, signature: string): Promise<{ status: boolean }> {
+    async handleWebhook(payload: PaystackWebhookPayload, signature: string, rawBody: Buffer): Promise<{ status: boolean }> {
         // Validate signature
-        this.logger.log(`DEBUG Webhook Payload: ${JSON.stringify(payload)}`);
+        // this.logger.log(`DEBUG Webhook Payload: ${rawBody.toString()}`);
 
         const secretKey = this.configService.get<string>('PAYSTACK_SECRET_KEY');
         const hash = crypto
             .createHmac('sha512', secretKey!)
-            .update(JSON.stringify(payload))
+            .update(rawBody)
             .digest('hex');
 
         if (hash !== signature) {
@@ -234,16 +234,6 @@ export class WalletsService {
         } finally {
             await queryRunner.release();
         }
-    }
-
-    generateTestSignature(payload: any): string {
-        const secret = this.configService.get<string>('PAYSTACK_SECRET_KEY');
-        if (!secret) return '';
-
-        return crypto
-            .createHmac('sha512', secret)
-            .update(JSON.stringify(payload))
-            .digest('hex');
     }
 
     async getBalance(user_id: string): Promise<number> {

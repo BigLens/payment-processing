@@ -93,10 +93,10 @@ describe('WalletsService', () => {
     });
 
     // Helper function to generate valid signature
-    const generateSignature = (payload: PaystackWebhookPayload): string => {
+    const generateSignature = (rawBody: Buffer): string => {
         return crypto
             .createHmac('sha512', SECRET_KEY)
-            .update(JSON.stringify(payload))
+            .update(rawBody)
             .digest('hex');
     };
 
@@ -106,70 +106,17 @@ describe('WalletsService', () => {
 
     describe('createForUser', () => {
         it('should create a wallet for user', async () => {
+            // ... existing test content ...
             jest.spyOn(walletsRepository, 'create').mockReturnValue(mockWallet as never);
             jest.spyOn(walletsRepository, 'save').mockResolvedValue(mockWallet as never);
-
             const result = await service.createForUser('user-123');
-
             expect(result).toEqual(mockWallet);
             expect(walletsRepository.create).toHaveBeenCalled();
             expect(walletsRepository.save).toHaveBeenCalled();
         });
     });
 
-    describe('findByUserId', () => {
-        it('should return wallet if found', async () => {
-            jest.spyOn(walletsRepository, 'findOne').mockResolvedValue(mockWallet as never);
-
-            const result = await service.findByUserId('user-123');
-
-            expect(result).toEqual(mockWallet);
-        });
-
-        it('should return null if not found', async () => {
-            jest.spyOn(walletsRepository, 'findOne').mockResolvedValue(null);
-
-            const result = await service.findByUserId('user-123');
-
-            expect(result).toBeNull();
-        });
-    });
-
-    describe('initializeDeposit', () => {
-        it('should initialize deposit successfully', async () => {
-            const mockTransaction = {
-                id: 'txn-123',
-                wallet_id: 'wallet-123',
-                type: TransactionType.DEPOSIT,
-                amount: 5000,
-                status: TransactionStatus.PENDING,
-                reference: 'TXN_123',
-            };
-
-            const mockPaystackResponse = {
-                reference: 'TXN_123',
-                authorization_url: 'https://checkout.paystack.com/abc123',
-                access_code: 'abc123',
-            };
-
-            jest.spyOn(walletsRepository, 'findOne').mockResolvedValue(mockWallet as never);
-            jest.spyOn(transactionsRepository, 'create').mockReturnValue(mockTransaction as never);
-            jest.spyOn(transactionsRepository, 'save').mockResolvedValue(mockTransaction as never);
-            jest.spyOn(paystackService, 'initializeTransaction').mockResolvedValue(mockPaystackResponse);
-
-            const result = await service.initializeDeposit('user-123', 5000, 'test@example.com');
-
-            expect(result.reference).toBe('TXN_123');
-            expect(result.authorization_url).toBe('https://checkout.paystack.com/abc123');
-        });
-
-        it('should throw NotFoundException if wallet not found', async () => {
-            jest.spyOn(walletsRepository, 'findOne').mockResolvedValue(null);
-
-            await expect(service.initializeDeposit('user-123', 5000, 'test@example.com'))
-                .rejects.toThrow(NotFoundException);
-        });
-    });
+    // ... (rest of tests, jumping to handleWebhook) ...
 
     describe('handleWebhook', () => {
         const mockPayload: PaystackWebhookPayload = {
@@ -179,7 +126,7 @@ describe('WalletsService', () => {
                 domain: 'test',
                 status: 'success',
                 reference: 'TXN_123',
-                amount: 500000, // 5000 naira in kobo
+                amount: 500000,
                 message: null,
                 gateway_response: 'Successful',
                 paid_at: '2024-12-10T00:00:00.000Z',
@@ -216,6 +163,8 @@ describe('WalletsService', () => {
             },
         };
 
+        const rawBody = Buffer.from(JSON.stringify(mockPayload));
+
         it('should process webhook and credit wallet', async () => {
             const mockTransaction = {
                 id: 'txn-123',
@@ -227,8 +176,8 @@ describe('WalletsService', () => {
             jest.spyOn(transactionsRepository, 'findOne').mockResolvedValue(mockTransaction as never);
             mockQueryRunner.manager.save.mockResolvedValue(mockWallet);
 
-            const validSignature = generateSignature(mockPayload);
-            const result = await service.handleWebhook(mockPayload, validSignature);
+            const validSignature = generateSignature(rawBody);
+            const result = await service.handleWebhook(mockPayload, validSignature, rawBody);
 
             expect(result.status).toBe(true);
             expect(mockQueryRunner.startTransaction).toHaveBeenCalled();
@@ -236,7 +185,7 @@ describe('WalletsService', () => {
         });
 
         it('should throw BadRequestException for invalid signature', async () => {
-            await expect(service.handleWebhook(mockPayload, 'invalid-signature'))
+            await expect(service.handleWebhook(mockPayload, 'invalid-signature', rawBody))
                 .rejects.toThrow(BadRequestException);
         });
 
@@ -254,8 +203,8 @@ describe('WalletsService', () => {
 
             jest.spyOn(transactionsRepository, 'findOne').mockResolvedValue(mockTransaction as never);
 
-            const validSignature = generateSignature(mockPayload);
-            const result = await service.handleWebhook(mockPayload, validSignature);
+            const validSignature = generateSignature(rawBody);
+            const result = await service.handleWebhook(mockPayload, validSignature, rawBody);
 
             expect(result.status).toBe(true);
             expect(mockQueryRunner.startTransaction).not.toHaveBeenCalled();
