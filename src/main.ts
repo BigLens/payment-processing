@@ -6,7 +6,9 @@ import { ConfigService } from '@nestjs/config';
 import * as express from 'express';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, {
+    bodyParser: false,
+  });
   // Explicitly map raw body for webhook verification
   app.use(express.json({
     verify: (req: any, res: any, buf: Buffer) => {
