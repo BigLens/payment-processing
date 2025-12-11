@@ -4,6 +4,7 @@ import { Wallet } from './entities/wallet.entity';
 import { Transaction } from '../transactions/entities/transaction.entity';
 import { WalletsService } from './wallets.service';
 import { WalletsController } from './wallets.controller';
+import { PaymentsController } from './payments.controller';
 import { PaystackModule } from '../paystack/paystack.module';
 import { ApiKeysModule } from '../api-keys/api-keys.module';
 import { AuthModule } from '../auth/auth.module';
@@ -18,7 +19,7 @@ import { ApiKeyGuard } from '../api-keys/guards/api-key.guard';
     ApiKeysModule,
     forwardRef(() => AuthModule),
   ],
-  controllers: [WalletsController],
+  controllers: [WalletsController, PaymentsController],
   providers: [WalletsService, FlexibleAuthGuard, JwtAuthGuard, ApiKeyGuard],
   exports: [TypeOrmModule, WalletsService],
 })
